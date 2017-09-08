@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+<title>Thumbnail Image Test</title>
+<style>
+	div, img {margin:0;padding:0;box-sizing:border-box;}
+
+	h1 {
+		text-align:center;
+	}
+
+	#image_container {
+		position:relative;
+		user-select:none;
+		margin:0 auto;
+	}
+
+	#thumbnail_select_area {
+		position:absolute;
+		background:rgba(255, 255, 255, 0.2);
+		border:1px solid #ffffff;
+		box-shadow:0 0 10px black;
+	}
+
+	#thumbnail_select_area:hover {
+		cursor:move;
+	}
+
+	#thumbnail_preview {
+		margin:0 auto;
+	}
+</style>
+<body>
+
+	<h1>Source Image</h1>
+
+	<div id="image_container">
+		<div id="thumbnail_select_area"></div>
+		<img src="http://www.qygjxz.com/data/out/96/4714467-google-wallpaper-hd.png" id="source_image">
+	</div>
+
+	<h1>Thumbnail Preview</h1>
+
+	<div id="thumbnail_preview"></div>
+
+	<script>
+		const image_container = document.getElementById('image_container');
+		const thumbnail_select_area = document.getElementById('thumbnail_select_area');
+		const source_image = document.getElementById('source_image');
+		const thumbnail_preview = document.getElementById('thumbnail_preview');
+
+		const THUMBNAIL_SIZE_IN_PIXELS = 150;
+
+		// everything related to sizing the source image, it's container, and the thumbnail select area
+		source_image.addEventListener('load', function() {
+			// referring to the distance the source image should be from the edge of the screen on the left and right in pixels
+			const MIN_DISTANCE_FROM_EDGE = 20;
+
+			function determineSourceImageDisplaySize() {
+				const max_width = window.innerWidth - (MIN_DISTANCE_FROM_EDGE * 2);
+				const max_height = 500;
+
+				const source_image_ratio = source_image.naturalHeight / source_image.naturalWidth;
+
+				// holds size objects with width/height properties
+				let size_objects = [];
+
+				size_objects.push({
+					width: source_image.naturalWidth,
+					height: source_image.naturalHeight
+				});
+
+				// if source image exceeds width or height maximum, push a size object to the array that fits the maximum
+
+				if (source_image.naturalHeight > max_height) {
+					size_objects.push({
+						width: max_height / source_image_ratio,
+						height: max_height
+					});
+				}
+
+				if (source_image.naturalWidth > max_width) {
+					size_objects.push({
+						width: max_width,
+						height: max_width * source_image_ratio
+					});
+				}
+
+				// return the smallest size object so the image fits nicely based on the current window size
+				let smallest = null;
+
+				for (const obj of size_objects) {
+					if (smallest === null || obj.width < smallest.width)
+						smallest = obj;
+				}
+
+				return smallest;
+			}
+
+			function setSourceImageDisplaySize(dimensions) {
+				source_image.style.width = dimensions.width + 'px';
+				source_image.style.height = dimensions.height + 'px';
+			}
+
+			function adjustSourceImageSizeOnWindowResize() {
+				setSourceImageDisplaySize(determineSourceImageDisplaySize());
+
+				source_image.currentScale = parseFloat(source_image.style.width) / source_image.naturalWidth;
+
+				// percentage of the current image size compared to what is was before the resize with 1 being 100% (no change)
+				const percentage_of_previous_size = parseFloat(source_image.style.width) / parseFloat(image_container.style.width);
+
+				image_container.style.width = source_image.style.width;
+				image_container.style.height = source_image.style.height;
+
+				// scale the thumbnail selection area the same as the source image's scaling
+				thumbnail_select_area.style.width = source_image.currentScale * THUMBNAIL_SIZE_IN_PIXELS + 'px';
+				thumbnail_select_area.style.height = source_image.currentScale * THUMBNAIL_SIZE_IN_PIXELS + 'px';
+
+				// move the thumbnail selection so it stays in the same spot (relatively) as before the size change
+				thumbnail_select_area.style.left = parseFloat(thumbnail_select_area.style.left) * percentage_of_previous_size + 'px';
+				thumbnail_select_area.style.top = parseFloat(thumbnail_select_area.style.top) * percentage_of_previous_size + 'px';
+			}
+
+			// run this initially when the page loads, and every time the window is resized
+			adjustSourceImageSizeOnWindowResize();
+
+			window.addEventListener('resize', adjustSourceImageSizeOnWindowResize);
+		});
+
+		// thumbnail preview sizing and functionality
+		{
+			thumbnail_preview.style.width = THUMBNAIL_SIZE_IN_PIXELS + 'px';
+			thumbnail_preview.style.height = THUMBNAIL_SIZE_IN_PIXELS + 'px';
+			thumbnail_preview.style.backgroundImage = `url("${source_image.src}")`;
+
+			thumbnail_preview.update = function(edgeDistanceObject) {
+				this.leftPixelValueOfSourceImage = parseInt(source_image.naturalWidth * edgeDistanceObject.percent_from_left);
+				this.topPixelValueOfSourceImage = parseInt(source_image.naturalHeight * edgeDistanceObject.percent_from_top);
+
+				// "-#px -#px"
+				this.style.backgroundPosition = `-${this.leftPixelValueOfSourceImage}px -${this.topPixelValueOfSourceImage}px`;
+			}
+		}
+
+		// create thumbnail_select_area drag functionality
+		{
+			thumbnail_select_area.determineEdgeDistances = function() {
+				const thumbnail_select_area_rect = thumbnail_select_area.getBoundingClientRect();
+				const source_image_rect = source_image.getBoundingClientRect();
+
+				const percent_from_left = (thumbnail_select_area_rect.left - source_image_rect.left) / source_image_rect.width;
+				const percent_from_top = (thumbnail_select_area_rect.top - source_image_rect.top) / source_image_rect.height;
+
+				return {
+					percent_from_left: percent_from_left,
+					percent_from_top: percent_from_top
+				};
+			}
+
+			thumbnail_select_area.addEventListener('mousedown', function(e) {
+				this.lastMousePosX = e.clientX;
+				this.lastMousePosY = e.clientY;
+				this.drag = true;
+			});
+
+			window.addEventListener('mousemove', function(e) {
+				const source_image_rect = source_image.getBoundingClientRect();
+
+				const mouse_within_source_width = e.clientX >= source_image_rect.left && e.clientX <= source_image_rect.right;
+				const mouse_within_source_height = e.clientY >= source_image_rect.top && e.clientY <= source_image_rect.bottom;
+
+				// physically move the thumbnail select area, but not outside the source image
+				if (thumbnail_select_area.drag && (mouse_within_source_width || mouse_within_source_height)) {
+					const moveAmountX = e.clientX - thumbnail_select_area.lastMousePosX;
+					const moveAmountY = e.clientY - thumbnail_select_area.lastMousePosY;
+
+					const currentLeft = parseInt(thumbnail_select_area.style.left || 0);
+					const currentTop = parseInt(thumbnail_select_area.style.top || 0);
+
+					const destinationLeft = currentLeft + moveAmountX;
+					const destinationTop = currentTop + moveAmountY;
+
+					const rightSideLimit = parseFloat(source_image.style.width) - parseFloat(thumbnail_select_area.style.width);
+					const bottomSideLimit = parseFloat(source_image.style.height) - parseFloat(thumbnail_select_area.style.height);
+
+					if (destinationLeft >= 0 && destinationLeft <= rightSideLimit)
+						thumbnail_select_area.style.left = destinationLeft + 'px';
+
+					if (destinationTop >= 0 && destinationTop <= bottomSideLimit)
+						thumbnail_select_area.style.top = destinationTop + 'px';
+
+					// allows X movement even if mouse is outside the source image's height
+					if (mouse_within_source_width)
+						thumbnail_select_area.lastMousePosX = e.clientX;
+
+					// allows Y movement even if mouse is outside the source image's width
+					if (mouse_within_source_height)
+						thumbnail_select_area.lastMousePosY = e.clientY;
+				}
+
+				// determine thumbnail select area percentage distance from source image edges, then update thumbnail preview
+				thumbnail_preview.update(thumbnail_select_area.determineEdgeDistances());
+			});
+
+			thumbnail_select_area.endDrag = function() {
+				this.drag = false;
+				this.lastMousePosX = null;
+				this.lastMousePosY = null;
+			}
+
+			window.addEventListener('mouseup', function() {
+				if (thumbnail_select_area.drag)
+					thumbnail_select_area.endDrag();
+			});
+		}
+
+	</script>
+
+</body>
+</html>
