@@ -134,11 +134,20 @@
 			thumbnail_preview.style.backgroundImage = `url("${source_image.src}")`;
 
 			thumbnail_preview.update = function(edgeDistanceObject) {
-				this.leftPixelValueOfSourceImage = parseInt(source_image.naturalWidth * edgeDistanceObject.percent_from_left);
-				this.topPixelValueOfSourceImage = parseInt(source_image.naturalHeight * edgeDistanceObject.percent_from_top);
+				this.scale = THUMBNAIL_SIZE_IN_PIXELS / (parseInt(thumbnail_select_area.style.width) / source_image.currentScale);
+
+				this.left_pixel_value_of_source_image = parseInt(source_image.naturalWidth * this.scale * edgeDistanceObject.percent_from_left);
+				this.top_pixel_value_of_source_image = parseInt(source_image.naturalHeight * this.scale * edgeDistanceObject.percent_from_top);
+
+				const left_offset = this.left_pixel_value_of_source_image;
+				const top_offset = this.top_pixel_value_of_source_image;
+
+				const source_image_size_X = source_image.naturalWidth * this.scale;
+				const source_image_size_Y = source_image.naturalHeight * this.scale;
 
 				// "-#px -#px"
-				this.style.backgroundPosition = `-${this.leftPixelValueOfSourceImage}px -${this.topPixelValueOfSourceImage}px`;
+				this.style.backgroundPosition = `-${left_offset}px -${top_offset}px`;
+				this.style.backgroundSize = `${source_image_size_X}px ${source_image_size_Y}px`;
 			}
 		}
 
@@ -211,6 +220,49 @@
 			window.addEventListener('mouseup', function() {
 				if (thumbnail_select_area.drag)
 					thumbnail_select_area.endDrag();
+			});
+		}
+
+		// thumbnail select area zoom functionality
+		{
+			thumbnail_select_area.zoomHandler = function(e) {
+				const mouse_wheel_direction = e.wheelDeltaY > 0 ? 'up' : 'down';;
+
+				// amount to increase/decrease thumbnail select area by
+				const size_increment = 5;
+
+				if (mouse_wheel_direction === 'up') {
+					// make sure that the area would still fit in on the source image after resize
+					const thumbnail_select_area_rect = thumbnail_select_area.getBoundingClientRect();
+					const source_image_rect = source_image.getBoundingClientRect();
+
+					const is_new_width_too_big = thumbnail_select_area_rect.right + size_increment > source_image_rect.right;
+					const is_new_height_too_big = thumbnail_select_area_rect.bottom + size_increment > source_image_rect.bottom;
+
+					if (!is_new_width_too_big && !is_new_height_too_big) {
+						const target_size = (parseInt(thumbnail_select_area.style.width) + size_increment);
+
+						thumbnail_select_area.style.width = target_size + 'px';
+						thumbnail_select_area.style.height = target_size + 'px';
+					}
+				} else {
+					const target_size = (parseInt(thumbnail_select_area.style.width) - size_increment);
+
+					if (target_size > 0) {
+						thumbnail_select_area.style.width = target_size + 'px';
+						thumbnail_select_area.style.height = target_size + 'px';
+					}
+				}
+
+				thumbnail_preview.update(thumbnail_select_area.determineEdgeDistances());
+			}
+
+			source_image.addEventListener('mousewheel', function(e) {
+				thumbnail_select_area.zoomHandler(e);	
+			});
+
+			thumbnail_select_area.addEventListener('mousewheel', function(e) {
+				thumbnail_select_area.zoomHandler(e);	
 			});
 		}
 
