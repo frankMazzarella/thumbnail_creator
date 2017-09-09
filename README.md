@@ -6,8 +6,14 @@ Use the mouse wheel to zoom the thumbnail select area in/out, and click/drag to 
 
 You can see the output scale and coordinates by calling these properties in the console:
 
+
+
 thumbnail_preview.left_pixel_value_of_source_image
 
 thumbnail_preview.top_pixel_value_of_source_image
 
 thumbnail_preview.scale
+
+
+Known Bugs:
+- if the window is resized, the size of the thumbnail select area resets to the default
